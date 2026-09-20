@@ -4,7 +4,7 @@ import sys
 import webbrowser
 import threading
 from urllib.parse import parse_qs, urlparse
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, Response, send_from_directory
 import yt_dlp
 
 # Ensure UTF-8 output on Windows console
@@ -14,31 +14,61 @@ if sys.stderr and hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+static_dir = os.path.join(BASE_DIR, "static")
+template_dir = os.path.join(BASE_DIR, "templates")
 
 app = Flask(
     __name__,
-    static_folder=os.path.join(BASE_DIR, "static"),
-    template_folder=os.path.join(BASE_DIR, "templates")
+    static_folder=static_dir,
+    template_folder=template_dir
 )
 
+# Vercel Path Fix Middleware
+# When Vercel rewrites requests to /api/index, it passes the original URL in HTTP_X_MATCHED_PATH
+class VercelPathFixMiddleware:
+    def __init__(self, wsgi_app):
+        self.wsgi_app = wsgi_app
+
+    def __call__(self, environ, start_response):
+        matched = environ.get("HTTP_X_MATCHED_PATH")
+        if matched:
+            environ["PATH_INFO"] = matched
+        return self.wsgi_app(environ, start_response)
+
+app.wsgi_app = VercelPathFixMiddleware(app.wsgi_app)
+
+def get_index_html():
+    possible_paths = [
+        os.path.join(BASE_DIR, "templates", "index.html"),
+        os.path.join(BASE_DIR, "index.html"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates", "index.html"),
+        os.path.join(os.getcwd(), "templates", "index.html"),
+        os.path.join(os.getcwd(), "api", "templates", "index.html"),
+    ]
+    for p in possible_paths:
+        if os.path.isfile(p):
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    return f.read()
+            except Exception:
+                pass
+    try:
+        return render_template("index.html")
+    except Exception:
+        return "<h1>YouTube Playlist Link Extractor</h1>"
+
 def normalize_playlist_url(url_or_id: str) -> str:
-    """Normalize various YouTube playlist URL formats or raw ID into a canonical playlist URL."""
     s = url_or_id.strip()
     if not s:
         return ""
-    
-    # If it's already a full playlist URL
     if "list=" in s:
         parsed = urlparse(s)
         query = parse_qs(parsed.query)
         if "list" in query and query["list"]:
             playlist_id = query["list"][0]
             return f"https://www.youtube.com/playlist?list={playlist_id}"
-    
-    # If it looks like a playlist ID directly (e.g. PL..., UU..., LL..., RD..., OLAK5uy_...)
     if re.match(r"^[a-zA-Z0-9_\-]+$", s) and len(s) >= 10:
         return f"https://www.youtube.com/playlist?list={s}"
-        
     return s
 
 def format_duration(seconds):
@@ -55,13 +85,27 @@ def format_duration(seconds):
         return ""
 
 @app.route("/")
+@app.route("/index")
+@app.route("/api")
+@app.route("/api/index")
+@app.route("/api/index.py")
 def index():
-    return render_template("index.html")
+    return Response(get_index_html(), mimetype="text/html; charset=utf-8")
 
-@app.route("/api/extract", methods=["POST"])
+@app.route("/static/<path:filename>")
+def serve_static(filename):
+    return send_from_directory(app.static_folder, filename)
+
+@app.route("/api/extract", methods=["GET", "POST"])
+@app.route("/extract", methods=["GET", "POST"])
 def extract_playlist():
-    data = request.get_json(silent=True) or {}
-    raw_input = data.get("url", "").strip()
+    if request.method == "GET":
+        raw_input = request.args.get("url", "").strip()
+    else:
+        data = request.get_json(silent=True) or {}
+        raw_input = data.get("url", "").strip()
+        if not raw_input and request.form:
+            raw_input = request.form.get("url", "").strip()
 
     if not raw_input:
         return jsonify({"success": False, "error": "Vui lòng nhập link hoặc ID playlist YouTube"}), 400
@@ -79,14 +123,11 @@ def extract_playlist():
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(playlist_url, download=False)
-            
             if not info:
                 return jsonify({"success": False, "error": "Không tìm thấy dữ liệu từ link được cung cấp"}), 404
 
-            # If the user passed a single video instead of a playlist
             entries_raw = info.get("entries")
             if entries_raw is None:
-                # Single video result
                 video_id = info.get("id")
                 if video_id:
                     video_url = f"https://www.youtube.com/watch?v={video_id}"
@@ -114,7 +155,6 @@ def extract_playlist():
                     continue
                 vid_id = e.get("id")
                 if not vid_id:
-                    # Try to extract from URL
                     e_url = e.get("url") or ""
                     match = re.search(r"v=([a-zA-Z0-9_\-]+)", e_url)
                     if match:
@@ -124,8 +164,6 @@ def extract_playlist():
                     continue
 
                 full_url = f"https://www.youtube.com/watch?v={vid_id}"
-                
-                # Best thumbnail
                 thumbs = e.get("thumbnails")
                 thumb_url = ""
                 if thumbs and isinstance(thumbs, list):
@@ -163,6 +201,15 @@ def extract_playlist():
             err_msg = "Danh sách phát này đang ở chế độ Riêng tư (Private)."
         return jsonify({"success": False, "error": f"Lỗi khi trích xuất: {err_msg}"}), 500
 
+@app.errorhandler(404)
+def fallback_404(e):
+    if request.path.endswith("/extract"):
+        return extract_playlist()
+    if request.path.startswith("/static/"):
+        filename = request.path[len("/static/"):]
+        return send_from_directory(app.static_folder, filename)
+    return Response(get_index_html(), mimetype="text/html; charset=utf-8")
+
 def open_browser():
     webbrowser.open_new("http://localhost:5000")
 
@@ -173,7 +220,6 @@ if __name__ == "__main__":
     print(f"[*] Mở giao diện tại: http://localhost:{port}")
     print("=" * 60)
     
-    # Auto open browser after 1 second
     if "--no-browser" not in sys.argv:
         threading.Timer(1.2, open_browser).start()
 
