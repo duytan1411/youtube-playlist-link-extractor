@@ -84,12 +84,18 @@ def format_duration(seconds):
     except Exception:
         return ""
 
+@app.route("/debug/headers")
+def debug_headers():
+    return jsonify({k: v for k, v in request.environ.items() if isinstance(v, (str, int, float))})
+
 @app.route("/")
 @app.route("/index")
 @app.route("/api")
-@app.route("/api/index")
-@app.route("/api/index.py")
+@app.route("/api/index", methods=["GET", "POST"])
+@app.route("/api/index.py", methods=["GET", "POST"])
 def index():
+    if request.method == "POST":
+        return extract_playlist()
     return Response(get_index_html(), mimetype="text/html; charset=utf-8")
 
 @app.route("/static/<path:filename>")
