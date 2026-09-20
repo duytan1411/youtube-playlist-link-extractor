@@ -40,7 +40,17 @@ Hoặc chạy bằng lệnh:
 python app.py
 ```
 
-### Cách 2: Dùng Công Cụ Dòng Lệnh (CLI)
+### Cách 2: Dùng Bản Web Online (Vercel / Render)
+
+Dự án đã được cấu hình sẵn file `vercel.json` và `api/index.py` để bạn đưa lên **Vercel** miễn phí:
+
+1. Truy cập [vercel.com](https://vercel.com/) và đăng nhập bằng GitHub.
+2. Bấm **Add New...** ➜ **Project**.
+3. Chọn repository: **`duytan1411/youtube-playlist-link-extractor`**.
+4. Bấm nút **Deploy** (không cần chỉnh sửa cấu hình gì thêm).
+5. Sau ~1 phút, Vercel sẽ cấp cho bạn tên miền miễn phí (ví dụ: `https://youtube-playlist-link-extractor.vercel.app`).
+
+### Cách 3: Dùng Công Cụ Dòng Lệnh (CLI)
 
 Chạy trực tiếp file `extract_cli.py`:
 
