@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Playlist Link Extractor - Lấy Link Video Tự Động</title>
+    <meta name="description" content="Công cụ trích xuất toàn bộ link video từ YouTube Playlist thành danh sách link Markdown hoặc URL độc lập nhanh chóng và tiện lợi.">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="ambient-glow glow-1"></div>
+    <div class="ambient-glow glow-2"></div>
+
+    <div class="container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="badge-pill">
+                <span class="pulse-dot"></span>
+                <span>YouTube Link Harvester Pro</span>
+            </div>
+            <h1 class="main-title">
+                YouTube Playlist <span class="gradient-text">Link Extractor</span>
+            </h1>
+            <p class="sub-title">
+                Chuyển đổi bất kỳ playlist YouTube nào thành danh sách link video độc lập chuẩn định dạng chỉ trong 1 giây.
+            </p>
+        </header>
+
+        <!-- Main Input Card -->
+        <div class="glass-card input-card">
+            <form id="extractForm" onsubmit="return false;">
+                <label for="playlistUrl" class="input-label">
+                    <i data-lucide="youtube" class="label-icon"></i>
+                    <span>Nhập URL hoặc ID Playlist YouTube</span>
+                </label>
+                
+                <div class="input-wrapper">
+                    <div class="input-icon-box">
+                        <i data-lucide="link-2"></i>
+                    </div>
+                    <input 
+                        type="text" 
+                        id="playlistUrl" 
+                        name="playlistUrl" 
+                        placeholder="https://www.youtube.com/playlist?list=... hoặc dán ID playlist"
+                        autocomplete="off"
+                        spellcheck="false"
+                    >
+                    <button type="button" id="pasteBtn" class="btn-icon-addon" title="Dán từ Clipboard">
+                        <i data-lucide="clipboard"></i>
+                        <span>Dán</span>
+                    </button>
+                    <button type="button" id="clearBtn" class="btn-icon-addon hidden" title="Xóa nội dung">
+                        <i data-lucide="x"></i>
+                    </button>
+                </div>
+
+                <div class="actions-row">
+                    <div class="quick-samples">
+                        <span class="sample-label">Thử ngay:</span>
+                        <button type="button" class="sample-chip" data-url="https://www.youtube.com/playlist?list=PLVgHx4Z63paYiFGQ56PjTF1PGePL3r69s">
+                            ⚡ 2022 ICT Mentorship (41 video)
+                        </button>
+                    </div>
+
+                    <button type="button" id="extractBtn" class="btn-primary">
+                        <span class="btn-content">
+                            <i data-lucide="sparkles"></i>
+                            <span>Trích Xuất Link</span>
+                        </span>
+                        <span class="btn-loader hidden">
+                            <div class="spinner"></div>
+                            <span>Đang trích xuất...</span>
+                        </span>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loadingState" class="glass-card loading-card hidden">
+            <div class="loader-visual">
+                <div class="scan-beam"></div>
+                <div class="loader-circle">
+                    <i data-lucide="play-circle" class="spinning-icon"></i>
+                </div>
+            </div>
+            <h3 class="loading-title">Đang quét danh sách phát YouTube...</h3>
+            <p class="loading-desc">Hệ thống đang kết nối và đọc danh sách video từ YouTube mà không làm giảm tốc độ đường truyền.</p>
+        </div>
+
+        <!-- Error Card -->
+        <div id="errorCard" class="error-card hidden">
+            <div class="error-icon">
+                <i data-lucide="alert-circle"></i>
+            </div>
+            <div class="error-content">
+                <h4>Không thể lấy dữ liệu</h4>
+                <p id="errorMessage">Đã có lỗi xảy ra khi đọc playlist. Vui lòng kiểm tra lại đường dẫn.</p>
+            </div>
+            <button type="button" id="dismissError" class="btn-icon-only">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+
+        <!-- Result Section -->
+        <div id="resultSection" class="result-section hidden">
+            <!-- Summary Stats Card -->
+            <div class="glass-card summary-card">
+                <div class="summary-info">
+                    <div class="playlist-meta">
+                        <span class="badge-tag" id="videoCountBadge">0 Video</span>
+                        <span class="channel-tag" id="channelName">
+                            <i data-lucide="user"></i>
+                            <span id="channelNameText">Kênh</span>
+                        </span>
+                    </div>
+                    <h2 class="playlist-title" id="playlistTitle">Tên Danh Sách Phát</h2>
+                </div>
+
+                <div class="summary-actions">
+                    <button type="button" id="copyAllBtn" class="btn-action btn-copy-glow">
+                        <i data-lucide="copy"></i>
+                        <span>Sao chép tất cả</span>
+                    </button>
+                    <button type="button" id="downloadTxtBtn" class="btn-action">
+                        <i data-lucide="download"></i>
+                        <span>Tải .TXT</span>
+                    </button>
+                    <button type="button" id="downloadCsvBtn" class="btn-action">
+                        <i data-lucide="file-spreadsheet"></i>
+                        <span>Tải CSV</span>
+                    </button>
+                    <button type="button" id="reverseOrderBtn" class="btn-action" title="Đảo ngược thứ tự 1-N / N-1">
+                        <i data-lucide="arrow-up-down"></i>
+                        <span>Đảo thứ tự</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Format Bar & View Toggles -->
+            <div class="glass-card controls-card">
+                <div class="control-group">
+                    <span class="control-label">Định dạng hiển thị:</span>
+                    <div class="format-options">
+                        <label class="format-chip active" data-format="plain">
+                            <input type="radio" name="formatChoice" value="plain" checked>
+                            <i data-lucide="globe"></i>
+                            <span>Link Thuần (Không ngoặc)</span>
+                        </label>
+                        <label class="format-chip" data-format="numbered">
+                            <input type="radio" name="formatChoice" value="numbered">
+                            <i data-lucide="list-ordered"></i>
+                            <span>1. Link</span>
+                        </label>
+                        <label class="format-chip" data-format="markdown">
+                            <input type="radio" name="formatChoice" value="markdown">
+                            <i data-lucide="code-2"></i>
+                            <span>[Link](Link)</span>
+                        </label>
+                        <label class="format-chip" data-format="title_markdown">
+                            <input type="radio" name="formatChoice" value="title_markdown">
+                            <i data-lucide="bookmark"></i>
+                            <span>[Title](Link)</span>
+                        </label>
+                        <label class="format-chip" data-format="title_plain">
+                            <input type="radio" name="formatChoice" value="title_plain">
+                            <i data-lucide="align-left"></i>
+                            <span>Title - Link</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="view-toggles">
+                    <button type="button" id="viewTextBtn" class="view-btn active" title="Dạng danh sách chữ">
+                        <i data-lucide="file-text"></i>
+                        <span>Danh Sách Link</span>
+                    </button>
+                    <button type="button" id="viewGridBtn" class="view-btn" title="Dạng danh thiếp có ảnh thu nhỏ">
+                        <i data-lucide="layout-grid"></i>
+                        <span>Xem Thumbnail</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Text/Code Result View -->
+            <div id="textView" class="glass-card result-box">
+                <div class="result-box-header">
+                    <div class="box-meta">
+                        <span class="dot-indicator"></span>
+                        <span id="displayFormatName">Định dạng: [URL](URL)</span>
+                    </div>
+                    <div class="box-tools">
+                        <span class="char-count" id="linkStats">41 dòng</span>
+                        <button type="button" id="quickCopyBtn" class="btn-micro" title="Sao chép nhanh">
+                            <i data-lucide="clipboard-copy"></i>
+                            <span>Copy</span>
+                        </button>
+                    </div>
+                </div>
+                <textarea id="linksOutput" readonly spellcheck="false"></textarea>
+            </div>
+
+            <!-- Grid/Cards Result View -->
+            <div id="gridView" class="video-grid hidden">
+                <!-- Video Cards dynamically generated here -->
+            </div>
+        </div>
+
+        <!-- History Drawer -->
+        <div class="history-section">
+            <div class="history-header" id="toggleHistoryBtn">
+                <div class="history-title">
+                    <i data-lucide="history"></i>
+                    <span>Lịch sử các Playlist gần đây</span>
+                    <span class="history-count" id="historyCountBadge">0</span>
+                </div>
+                <i data-lucide="chevron-down" id="historyChevron" class="chevron-icon"></i>
+            </div>
+            <div class="history-content hidden" id="historyList">
+                <div class="history-empty" id="historyEmpty">Chưa có lịch sử trích xuất nào.</div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <p>Phát triển cho tự động hóa YouTube • Tốc độ cao với yt-dlp • Chạy cục bộ bảo mật 100%</p>
+        </footer>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast hidden">
+        <i data-lucide="check-circle" class="toast-icon"></i>
+        <span id="toastMessage">Đã sao chép vào bộ nhớ tạm!</span>
+    </div>
+
+    <script src="/static/app.js"></script>
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+    </script>
+</body>
+</html>
